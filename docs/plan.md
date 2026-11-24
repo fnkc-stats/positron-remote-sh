@@ -36,19 +36,20 @@ Server needs: bash ≥ 5, Docker, OpenSSH, util-linux (`flock`), coreutils, GNU 
 volumes inside a helper container, so git on the host is optional). Client needs: bash, OpenSSH, git, GnuPG (for
 git-crypt projects), Positron.
 
-## Decisions needed before phase 2 (ask the user)
+## Decisions (user, 2026-11-24)
 
-1. **Windows clients.** Colleagues on Windows have no bash by default. Options: Git Bash (comes with Git for Windows,
-   recommended), WSL, or a small PowerShell twin of `fnkc`. Positron's Remote SSH itself works on Windows.
-2. **Image provenance on the host.** positron-remote verifies GitHub attestations offline in Node. Options: the `gh`
-   CLI on the host (`gh attestation verify --bundle`, offline), `cosign`, or trust by digest pin only.
-3. **Images for offline hosts.** Upload from the laptop (`docker save | ssh gateway upload`, verified layer by layer
-   before `docker load`) as now, or require hosts to pull from ghcr.io.
-4. **Existing hosts.** Nobody uses positron-remote yet: start clean (recommended), or keep its container, volume and
-   label names so projects carry over.
-5. **Repository.** Where this lives on GitHub (e.g. `fnkc-stats/positron-remote-sh`, public like the original).
-   Nothing is pushed until decided.
-6. **Command names.** Keep `fnkc-ctl` (server) and add `fnkc` (client), or rename.
+1. **Windows clients:** Git Bash (comes with Git for Windows). `fnkc` must run under Git Bash's bash and MSYS paths;
+   CI runs the client tests on a Windows runner with Git Bash. Positron's Remote SSH works on Windows as is.
+2. **Image provenance on the host:** the `gh` CLI, offline (`gh attestation verify --bundle … --custom-trusted-root`),
+   as positron-remote does today. `gh` becomes a host dependency checked by `install.sh`; the trust root is refreshed
+   by `refresh-trust-root.sh` as now.
+3. **Images for offline hosts:** upload from the laptop as now (`docker save | ssh gateway upload`, verified manifest
+   by manifest and layer by layer before `docker load`); `pullImages: false` stays the default.
+4. **Existing hosts:** clean start. No migration from positron-remote's containers, volumes, labels or installs; names
+   may change where that makes the bash code simpler, but stay distinct from positron-remote's so both can coexist on
+   one host during the pilot.
+5. **Repository:** `fnkc-stats/positron-remote-sh`, public like the original.
+6. **Command names:** `fnkc-ctl` on the server (as now), `fnkc` on the client.
 
 ## Phases (one PR each unless noted; each PR runs `./lint.sh` and adds its tests)
 
