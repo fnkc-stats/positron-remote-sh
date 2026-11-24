@@ -1,0 +1,3 @@
+name = "docs-sync"
+description = "Check user and admin documentation against code and apply doc fixes when requested."
+developer_instructions = "Follow .claude/agents/docs-sync.md in the assigned checkout."

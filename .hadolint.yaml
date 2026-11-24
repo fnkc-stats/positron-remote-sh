@@ -1,0 +1,6 @@
+# hadolint: Dockerfile checks (run by lint.sh)
+failure-threshold: warning
+ignored:
+  # apt package versions are not pinned: published image digests preserve installed contents; explicit versions
+  # break the build after every Ubuntu security update. R package versions come from the renv.lock files.
+  - DL3008

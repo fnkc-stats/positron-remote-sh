@@ -1,0 +1,3 @@
+name = "rollout-guard"
+description = "Review release safety, server-first compatibility, running containers, installation, image changes, and rollback."
+developer_instructions = "Follow .claude/agents/rollout-guard.md in the assigned checkout."

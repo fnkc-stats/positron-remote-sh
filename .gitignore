@@ -1,0 +1,7 @@
+.cache/
+.claude/settings.local.json
+.claude/worktrees/
+# Audit reports and fix plans stay local (also excluded in .git/info/exclude)
+docs/audits/
+# Raw meeting transcripts (<name>-<yyyy-mm-dd>.md at the root), kept local only
+/*-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md

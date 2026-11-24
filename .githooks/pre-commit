@@ -1,0 +1,22 @@
+#!/bin/sh
+# Before each commit: git-crypt check, then ./lint.sh. To skip once: git commit --no-verify
+top=$(git rev-parse --show-toplevel)
+
+# git-crypt: refuse to commit while locked or with plaintext secrets staged
+if grep -qs 'filter=git-crypt' "$top/.gitattributes"; then
+  if [ ! -f "$(git rev-parse --git-common-dir)/git-crypt/keys/default" ]; then
+    echo "pre-commit: git-crypt is locked. Run 'git-crypt unlock' first." >&2
+    exit 1
+  fi
+  if ! out=$(git-crypt status -e 2>&1) || echo "$out" | grep -q 'NOT ENCRYPTED'; then
+    echo "$out" | grep 'NOT ENCRYPTED' >&2
+    echo "pre-commit: files that should be encrypted are staged as plaintext." >&2
+    echo "Fix with 'git-crypt status -f', then re-stage." >&2
+    exit 1
+  fi
+fi
+
+# Git points GIT_DIR / GIT_INDEX_FILE at this commit while hooks run (in a worktree too): the tests make their own
+# throwaway repositories and must not write into this one
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
+FNKC_PRE_COMMIT=1 exec "$top/lint.sh"
