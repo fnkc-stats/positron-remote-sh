@@ -1,8 +1,9 @@
 # Plan: positron-remote on plain SSH, bash and Docker
 
 Goal: the same service as `fnkc-stats/positron-remote` (each project in its own container on a team server, opened
-from Positron over SSH), with **no Node.js anywhere**: not on servers, not on analysts' computers, not in the build.
-The server side is bash + Docker + OpenSSH; the client side is bash + OpenSSH + Positron's built-in Remote SSH.
+from Positron over SSH), with **no Node.js to install anywhere**: not on servers, not on analysts' or developers'
+computers. The server side is bash + Docker + OpenSSH. The client is positron-remote's Positron extension, kept in
+TypeScript (decision 7): it runs inside Positron's own bundled Node, and CI builds and tests it.
 
 Source of truth for behaviour: `positron-remote` @ 9ff6fca, frozen copies of its docs in [reference/](../reference/).
 Everything there that is not explicitly dropped below must keep working the same way.
@@ -26,11 +27,11 @@ Everything there that is not explicitly dropped below must keep working the same
 | Area | positron-remote | here |
 | --- | --- | --- |
 | Server program | `fnkc-ctl.cjs` on Node | bash scripts under `/opt/fnkc-ctl/current/` |
-| Wire protocol | JSON lines | fixed argv grammar in, `key=value` / NUL-free lines out; JSON only where a tool already speaks it, parsed with `jq` |
+| Wire protocol | `fnkc-ctl agent <request> <args>` in, JSON on stdin for `start`, one JSON reply line out | the same protocol, versions and capabilities (decision 7); argv validated by anchored regexes, JSON read and written only with `jq` |
 | Container SSH path | agent pipes to the container's port | `docker exec -i <container> /usr/sbin/sshd -i` (inetd mode: no port, no network piping), to be confirmed in phase 2 |
-| Client | Positron extension (sidebar, buttons, self-update) | `fnkc` bash command + Positron's Remote SSH ("Connect to Host…") |
-| Local Docker mode | in-process agent | dropped in v1 (server is priority 1) |
-| Tests | node:test, in-process | bats-core with a fake `docker` on PATH; integration in a disposable server container |
+| Client | Positron extension (sidebar, buttons, self-update) + Node CLI `fnkc-ctl.cjs` | the same extension under its own id (coexists with positron-remote's), without the Node CLI and the in-process agent; a small bash `fnkc` (list, stop, doctor) for the terminal |
+| Local Docker mode | in-process agent | dropped in v1 (server is priority 1); the TypeScript agent is not imported |
+| Tests | node:test, in-process | server: bats-core with a fake `docker` on PATH, integration in a disposable server container; extension: its node:test suite in CI (or `docker run node`), never a local Node install; parity: the extension's transport against the bash server |
 
 Server needs: bash ≥ 5, Docker, OpenSSH, util-linux (`flock`), coreutils, GNU tar, `jq`, `git` (removal preview reads
 volumes inside a helper container, so git on the host is optional). Client needs: bash, OpenSSH, git, GnuPG (for
@@ -50,6 +51,28 @@ git-crypt projects), Positron.
    one host during the pilot.
 5. **Repository:** `fnkc-stats/positron-remote-sh`, public like the original.
 6. **Command names:** `fnkc-ctl` on the server (as now), `fnkc` on the client.
+7. **Client and protocol (user, 2026-11-24):** TypeScript may stay where nobody installs Node: keep positron-remote's
+   Positron extension as the client, and have the bash server speak positron-remote's existing protocol (requests,
+   JSON replies, error codes, protocol version, capabilities), so the extension needs only small changes and its
+   transport doubles as the parity test. The extension gets its own id, `~/.ssh` entry directory and release URLs so
+   it coexists with positron-remote's (decision 4). Local Docker mode is dropped in v1. Decision 1 (Git Bash) now
+   covers only the small bash `fnkc`; the extension's Windows path is positron-remote's, unchanged.
+
+## Parallel work rules
+
+Several builders work at once (queue: `docs/queue/rewrite.md`, local). They never edit the same file, because the
+shared parts are created once, complete, by one early task, and later tasks only add files:
+
+- Gateway requests: `server/lib/grammar.sh` lists every request and its argument regexes (written once, from
+  `docs/spec.md`); each request is `server/requests/<request>.sh`, and a missing file answers `unknown-command`.
+  Each request file declares its own capabilities; `ping` collects them.
+- Admin commands: the same pattern under `server/admin/<command>.sh`.
+- Error codes, reply envelope, `agent.json` keys: `server/lib/reply.sh` and `server/lib/config.sh`, complete from the
+  spec. A new code or key is its own small task, serialized.
+- Tests: one `test/<area>/<topic>.bats` per task; the fake `docker` answers from per-test scenario files, so tasks
+  add scenarios and never edit the fake. CI discovers `test/**/*.bats` and `test/integration/*.sh`, so tasks never
+  edit the workflow.
+- Spec: `docs/spec.md` rows; each task marks only its own rows.
 
 ## Phases (one PR each unless noted; each PR runs `./lint.sh` and adds its tests)
 
@@ -70,9 +93,9 @@ git-crypt projects), Positron.
    `admin remove-user` with the unpushed-work check.
 6. **Admin and install.** `install.sh` (port from positron-remote, minus Node), `add-user`/`remove-user`,
    `check-config`, `status`, `record-image`, `resolve-image`, backups, `render-reviewed.py`, release switch recovery.
-7. **Client.** `fnkc open|stop|list|delete|doctor`: SSH config entries under `~/.ssh/fnkc/`, host-key pinning,
-   ownership of entries, locking, opening Positron on the remote folder; Windows path per decision 1.
-8. **Release and CI.** Release workflow (server tarball + client script, checksums, attestation), compatibility
+7. **Client.** Import positron-remote's extension (client side only) under its own id and paths, built and tested in
+   CI; a small bash `fnkc list|stop|doctor` (Git Bash on Windows, decision 1).
+8. **Release and CI.** Release workflow (server tarball + `.vsix` + `fnkc`, checksums, attestation), compatibility
    file for server-first upgrades, scheduled checks.
 9. **Docs.** Russian user docs (README, manual, workflow), admin docs (admin-setup, operations, reference), adapted
    from `reference/`.
