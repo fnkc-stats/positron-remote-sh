@@ -1,0 +1,25 @@
+{
+  "weekCap": 50,
+  "slots": [
+    "00:00",
+    "04:30"
+  ],
+  "fiveHourCap": 90,
+  "killMargin": 5,
+  "noNewWorkAfterHours": 3,
+  "hardStopHours": 4,
+  "permissionMode": "auto",
+  "pacing": "none",
+  "sources": [
+    {
+      "name": "rewrite queue",
+      "plan": "docs/queue/rewrite.md",
+      "command": "/rewrite --max 3 --refill"
+    },
+    {
+      "name": "audit plan",
+      "plan": "docs/audits/*-fix-plan.md",
+      "command": "/audit-fix --max 4 --refill"
+    }
+  ]
+}

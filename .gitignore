@@ -5,3 +5,10 @@
 docs/audits/
 # Raw meeting transcripts (<name>-<yyyy-mm-dd>.md at the root), kept local only
 /*-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md
+# Rewrite task queue: local working file, like the audit plans (also excluded in .git/info/exclude)
+docs/queue/
+# Night runs: runtime state, reports and logs (the script, README and config.json are tracked)
+.claude/night/*
+!.claude/night/night.py
+!.claude/night/README.md
+!.claude/night/config.json
