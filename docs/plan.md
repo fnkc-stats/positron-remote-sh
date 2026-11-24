@@ -97,6 +97,7 @@ git-crypt projects), Positron.
 ## Policies carried over
 
 `CLAUDE.md` and `AGENTS.md` (inline-first, standing rules), `.claude/agents/` checklists, `.claude/skills/audit-fix`
-and `audit-queue`, `.agents/skills/audit*` (Codex), `.codex/agents/`, `.githooks/pre-commit`, `.shellcheckrc`,
+and `audit-queue`, the night runs (`.claude/night/`, moved here from positron-remote on 2026-11-24 and adapted to
+the rewrite queue: `/rewrite`, `/rewrite-queue`, `/rewrite-add`, `/tonight`, worker `rewrite-builder`), `.agents/skills/audit*` (Codex), `.codex/agents/`, `.githooks/pre-commit`, `.shellcheckrc`,
 `.hadolint.yaml`. `r-env-curator` stays in positron-remote, which owns the images. `reference/` holds frozen copies of
 positron-remote's docs: policies, lifecycle, data execution, operations, admin setup, reference, manual, workflow.
