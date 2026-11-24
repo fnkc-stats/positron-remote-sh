@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# fake-command <name> <argv...>: stands in for docker, ssh, gh (and any command a test fakes) on PATH.
+# test/helpers/common.bash writes one wrapper per faked command into the test's own bin directory.
+#
+# 1. Logs the call to $FAKE_DIR/calls.log: one line, "<name> <argv...>" with every word shell-quoted (printf %q),
+#    so arguments with spaces, quotes or newlines stay one unambiguous line.
+# 2. Picks the scenario: the deepest directory $FAKE_DIR/<name>/<word1>/<word2>/... that holds a scenario file
+#    (stdout, stderr, status, run; also their .N variants). Words are taken from argv in order while they look like
+#    plain path components ([A-Za-z0-9_.:@=+,-], not "." or ".."); the walk stops at the first other word.
+#    $FAKE_DIR/<name>/ itself is the catch-all scenario.
+# 3. Answers: on the Nth call of this scenario, if any file with suffix .N exists, only the .N files are used (a
+#    numbered answer replaces the plain one); otherwise the plain files:
+#      run[.N]     executable; exec'ed with the argv (stdin passed through), it does everything itself
+#      stdout[.N]  copied to stdout
+#      stderr[.N]  copied to stderr
+#      status[.N]  exit status (default 0)
+#      capture-stdin   if present, stdin is saved to $FAKE_DIR/stdin.<call number>
+#    No scenario: a message on stderr and exit 99, so an unexpected call fails the test instead of passing quietly.
+set -euo pipefail
+shopt -s inherit_errexit
+
+name="${1:?fake-command: missing command name}"
+shift
+: "${FAKE_DIR:?fake-command: FAKE_DIR is not set (call setup_fakes)}"
+
+line="$(printf '%q' "$name")"
+for a in "$@"; do line+=" $(printf '%q' "$a")"; done
+printf '%s\n' "$line" >>"$FAKE_DIR/calls.log"
+call_no="$(wc -l <"$FAKE_DIR/calls.log")"
+call_no="${call_no//[^0-9]/}"
+
+is_scenario() {
+  local d="$1" f
+  [[ -d "$d" ]] || return 1
+  for f in "$d"/stdout* "$d"/stderr* "$d"/status* "$d"/run*; do
+    [[ -e "$f" ]] && return 0
+  done
+  return 1
+}
+
+dir="$FAKE_DIR/$name"
+scenario=""
+is_scenario "$dir" && scenario="$dir"
+for a in "$@"; do
+  [[ "$a" =~ ^[A-Za-z0-9_.:@=+,-]+$ && "$a" != . && "$a" != .. ]] || break
+  dir="$dir/$a"
+  [[ -d "$dir" ]] || break
+  is_scenario "$dir" && scenario="$dir"
+done
+
+if [[ -z "$scenario" ]]; then
+  printf 'fake %s: no scenario for: %s\n' "$name" "$line" >&2
+  exit 99
+fi
+
+# Per-scenario call counter (one line per call).
+printf '%s\n' "$call_no" >>"$scenario/.calls"
+n="$(wc -l <"$scenario/.calls")"
+n="${n//[^0-9]/}"
+
+# The Nth call uses the .N files if there is any, and then only those: a numbered answer replaces the plain one.
+sfx=""
+for f in stdout stderr status run; do
+  if [[ -e "$scenario/$f.$n" ]]; then sfx=".$n"; fi
+done
+pick() {
+  [[ ! -e "$scenario/$1$sfx" ]] || printf '%s' "$scenario/$1$sfx"
+}
+
+if [[ -e "$scenario/capture-stdin" ]]; then
+  cat >"$FAKE_DIR/stdin.$call_no"
+fi
+
+run="$(pick run)"
+if [[ -n "$run" ]]; then
+  exec "$run" "$@"
+fi
+
+out="$(pick stdout)"
+err="$(pick stderr)"
+st="$(pick status)"
+[[ -z "$out" ]] || cat -- "$out"
+[[ -z "$err" ]] || cat -- "$err" >&2
+status=0
+if [[ -n "$st" ]]; then
+  status="$(<"$st")"
+  [[ "$status" =~ ^[0-9]{1,3}$ ]] || {
+    printf 'fake %s: bad status file %s\n' "$name" "$st" >&2
+    exit 98
+  }
+fi
+exit "$status"
