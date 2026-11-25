@@ -14,12 +14,15 @@ Rules for this file:
 
 ## Open questions
 
-| ID | Question | Options (recommended first) | Blocks |
-| --- | --- | --- | --- |
-| Q-S1 | Host paths and account. positron-remote uses the account `fnkc`, `/opt/fnkc-ctl`, `/etc/fnkc-ctl/{agent.json,keys/,trusted-root.jsonl}`, journal tag `fnkc-ctl` and the `authorized_keys` marker `fnkc-ctl:<user>`. Decision 4 wants both on one pilot host, but the plan's «What stays the same» keeps `/opt/fnkc-ctl`. Sharing the account mixes both tools' users in `admin list-users` and `remove-user`; sharing `/opt/fnkc-ctl` makes the two installers overwrite each other. | **a)** own names: account `fnkcsh`, `/opt/fnkc-ctl-sh`, `/etc/fnkc-ctl-sh`, journal tag `fnkc-ctl-sh`, marker `fnkc-ctl-sh:<user>`; the program is still called `fnkc-ctl` (Decision 6), inside that directory. **b)** positron-remote's paths, and the pilot runs on a host without positron-remote. | R4 (default path), R16, R18, R20, R24 (SSH account in host settings) |
+None in this list; a few rows below are still marked **open** in their own tables.
 
-Until Q-S1 is answered, this file writes host paths as `$PREFIX` (`/opt/fnkc-ctl` or `/opt/fnkc-ctl-sh`), `$ETC`
-(`/etc/fnkc-ctl` or `/etc/fnkc-ctl-sh`), `$ACCOUNT` (`fnkc` or `fnkcsh`) and `$TAG` (journal tag and key marker).
+Answered:
+
+- **Q-S1** (host paths and account; user, 2026-11-24, option a): own names, distinct from positron-remote's
+  (`fnkc`, `/opt/fnkc-ctl`, `/etc/fnkc-ctl`, tag and marker `fnkc-ctl`) so both run on one pilot host (Decision 4):
+  account `fnkcsh`, install prefix `/opt/fnkc-ctl-sh`, configuration `/etc/fnkc-ctl-sh`, journal tag `fnkc-ctl-sh`,
+  `authorized_keys` marker `fnkc-ctl-sh:<user>`. The program is still `fnkc-ctl` (Decision 6), inside that prefix.
+  See [plan.md](plan.md#decisions-user-2026-11-24), decision 8.
 
 ## Wire contract
 
@@ -32,7 +35,7 @@ identity (R24), so every shape below is exact.
 `authorized_keys` (written by `admin add-user`, R18), one line per user:
 
 ```
-command="$PREFIX/fnkc-ctl serve --user <user>",restrict <key type> <key data> $TAG:<user>
+command="/opt/fnkc-ctl-sh/fnkc-ctl serve --user <user>",restrict <key type> <key data> fnkc-ctl-sh:<user>
 ```
 
 `fnkc-ctl serve --user <user> [--agent-config <file>] [--path <dirs>]` (`--path` replaces the fixed `PATH`, for
@@ -178,7 +181,7 @@ the published port on `127.0.0.1`.
 
 ### Journal
 
-One line per request and per admin command through `logger -t $TAG -p user.info` (failures `user.warning`):
+One line per request and per admin command through `logger -t fnkc-ctl-sh -p user.info` (failures `user.warning`):
 `key=value` pairs (`src/journal.ts` `formatLine`: values with spaces, quotes, `=` or non-printable characters are
 JSON-quoted, at most 1000 characters). Fields: `user`, `from` (first word of `SSH_CONNECTION`), `command`,
 `project` or `image`, for `start` also `revision`, `image`, `positron`, `client`, `running`, `created`,
@@ -207,7 +210,7 @@ differs), and positron-remote's exact label keys (`fnkc.user`, …) never match 
 | upload tag | `<repository>:sha256-<hex>` (kept: content-addressed, so sharing it with positron-remote is harmless; the moved-tag check compares it with our own record) | `oci.ts` `uploadedTag` | R14, R15 |
 | loaded-image record | `<imageStagingDir>/loaded/<digest hex>` holding `sha256:<64 hex>` | `image-store.ts` `loadedRecord` | R14, R15 |
 
-Ownership (R5): an object is the user's project object only when `fnkcsh.managed=1`, `fnkcsh.user=<user>`,
+Ownership (R5, done: `is_owned` in `server/lib/names.sh`, `own_object`/`find_owned` in `server/lib/docker.sh`): an object is the user's project object only when `fnkcsh.managed=1`, `fnkcsh.user=<user>`,
 `fnkcsh.project=<project>` **and** its name is the one computed above (`isProjectContainer`, `own`). Anything else
 under the name → refused (`refusing container not owned by this user/project`).
 
@@ -217,13 +220,13 @@ Kept unchanged, because they live inside a container or an image: container user
 
 ## agent.json
 
-`$ETC/agent.json`, a JSON object; read with `jq` (R4). Unknown keys are ignored by the gateway and warned about by
+`/etc/fnkc-ctl-sh/agent.json`, a JSON object; read with `jq` (R4). Unknown keys are ignored by the gateway and warned about by
 `admin check-config` with a suggestion (edit distance, `unknownConfigKeys`). Source: `src/agent-config.ts`.
 
 | Key | Default | Validation | Status |
 | --- | --- | --- | --- |
 | `allowedImages` | `["ghcr.io/fnkc-stats/r-env"]` | non-empty list of exact repositories, each `^[a-z0-9][a-z0-9._/:-]*[a-z0-9]$` | kept |
-| `keysDir` | none (required by `serve`) | string | kept; recommended `$ETC/keys` |
+| `keysDir` | none (required by `serve`) | string | kept; recommended `/etc/fnkc-ctl-sh/keys` |
 | `limits.memory` | `4g` | `^[0-9]+[bkmgBKMG]?$`, > 0 | kept |
 | `limits.cpus` | `2` | number or string `^[0-9]+(\.[0-9]+)?$`, > 0 | kept |
 | `limits.pids` | `512` | positive integer | kept |
@@ -245,7 +248,7 @@ Kept unchanged, because they live inside a container or an image: container user
 | `requireProvenance` | `true` when `keysDir` is set | boolean | kept |
 | `provenanceRepository` | `fnkc-stats/positron-remote` | string | kept (images are built there) |
 | `provenanceWorkflow` | `.github/workflows/positron.yml` | string | kept |
-| `trustedRootFile` | `$ETC/trusted-root.jsonl` | string | kept (path per Q-S1) |
+| `trustedRootFile` | `/etc/fnkc-ctl-sh/trusted-root.jsonl` | string | changed: own directory (Q-S1) |
 | `verifiedDir` | `~/.cache/fnkc-ctl/verified` | string | changed: no namespace |
 
 "Memory size" is `checkLimit('memory')`: `^[0-9]+[bkmgBKMG]?$` and greater than 0. A wrong type or value fails the
@@ -255,7 +258,7 @@ request with `agent config: "<key>" must …` (wording from source). Defaults un
 ## Admin commands
 
 `fnkc-ctl admin <sub> …` (`src/cli.ts` `admin`, `src/admin.ts`). Options everywhere: `--account <name>` (default
-`$ACCOUNT`), `--agent-config <file>`. Root required, except `check-config` and `resolve-image`. Each mutating
+`fnkcsh`), `--agent-config <file>`. Root required, except `check-config` and `resolve-image`. Each mutating
 command writes a journal line. Each is `server/admin/<sub>.sh`; the dispatcher (R18) answers a missing file with a
 clear error.
 
@@ -264,7 +267,7 @@ clear error.
 | `check-config [file]` | prints the settings in force with defaults (JSON, pretty); warns about unknown keys | `cli.ts` | R4 |
 | `resolve-image <image>` | prints the verified local image ID of an allowed image (provenance if required, moved-tag check) | `host-image.ts` | R14 |
 | `record-image <image>` | records the image ID of an image loaded before upload records, under lock `image-store`, only when a project container runs exactly that image | `image-store.ts` `recordExistingImage` | R14 |
-| `add-user <name> <key file \| "key">` | writes `<keysDir>/<name>.pub` and the `authorized_keys` line, atomically (temp file, owner `$ACCOUNT`, mode 600), under lock `host`; replaces an existing line of that user | `admin.ts` `addUser` | R18 |
+| `add-user <name> <key file \| "key">` | writes `<keysDir>/<name>.pub` and the `authorized_keys` line, atomically (temp file, owner `fnkcsh`, mode 600), under lock `host`; replaces an existing line of that user | `admin.ts` `addUser` | R18 |
 | `remove-user <name> [--lose-work]` | unpushed-work check of every project (refuses and exits 1 if any), then removes the key under lock `host`, then stops the user's running projects; volumes kept; `--lose-work` skips the check | `cli.ts`, `offboard.ts` | R18 (revoke), R19 (check) |
 | `list-users` | users with a marked line in `authorized_keys` | `admin.ts` `listUsers` | R18 |
 | `status [--sizes] [--json]` | every user's projects, host memory against limits, installed releases, restore volumes | `admin-status.ts` | R21 |

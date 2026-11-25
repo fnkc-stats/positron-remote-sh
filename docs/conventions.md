@@ -109,3 +109,16 @@ setup() {
 jq, git, bats), natively on a Linux machine with bats and flock; client tests run natively when bats is installed.
 One file while iterating: `bats test/server/core.bats` on Linux, or
 `docker run --rm -v "$PWD:/repo:ro" fnkc-sh-test:<tag> test/server/core.bats` after a first `./lint.sh`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every PR and push to main and finds its work in the tree, so tasks never edit it:
+
+- `lint`: `./lint.sh` on Ubuntu with bats (pinned) and flock installed, so the server tests run natively.
+- `integration (<script>)`: one job per tracked `test/integration/*.sh`, run as `bash <script>` from the repository
+  root on the runner's Docker. The script starts and removes its own disposable containers and exits non-zero on
+  failure.
+- `extension`: only when `extension/package.json` is tracked. It needs `extension/.nvmrc` (the exact Node version),
+  `extension/package-lock.json` and the npm scripts `typecheck`, `test` and `package`; `package` writes
+  `extension/dist/*.vsix`, kept as the `vsix` artifact.
+- `client-windows`: when `test/client/*.bats` exist, runs them with bats under Git Bash on Windows (LF checkout).
