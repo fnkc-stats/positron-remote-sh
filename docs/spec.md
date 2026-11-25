@@ -35,7 +35,8 @@ identity (R24), so every shape below is exact.
 command="$PREFIX/fnkc-ctl serve --user <user>",restrict <key type> <key data> $TAG:<user>
 ```
 
-`fnkc-ctl serve --user <user> [--agent-config <file>]`:
+`fnkc-ctl serve --user <user> [--agent-config <file>] [--path <dirs>]` (`--path` replaces the fixed `PATH`, for
+tests; like `--agent-config` it is in the authorized_keys command line, so a client cannot set it):
 
 1. Clears the environment (keeps nothing it did not set itself: `PATH`, `LANG`, `IFS`, `BASH_ENV`, `ENV` are reset
    before any other code runs; it reads only `SSH_ORIGINAL_COMMAND` and `SSH_CONNECTION`). *Changed:* new hardening.
