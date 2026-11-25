@@ -1,0 +1,173 @@
+# Checks for every PR and push to main. Everything is discovered from the tree, so later tasks add files and never
+# edit this workflow:
+#   lint            ./lint.sh: static checks, secrets over the whole history, and bats over test/**/*.bats, run
+#                   natively (bats and flock are installed here, so lint.sh does not build the test image)
+#   integration     one job per test/integration/*.sh, each against the runner's Docker (skipped when there are none)
+#   extension       only if extension/package.json exists: Node from extension/.nvmrc, npm ci, npm run typecheck,
+#                   npm test, npm run package (must write extension/dist/*.vsix, uploaded as an artifact)
+#   client-windows  test/client/**/*.bats under Git Bash on Windows (plan Decision 1; skipped when there are none)
+# Actions are pinned by commit SHA (the tag in the comment), and so is bats-core.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BATS_REPO: bats-core/bats-core
+  BATS_REF: eb7f42f8d608ac693d7a4b67474f6714ea68cfc5 # v1.14.0, the version in test/helpers/Dockerfile
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      integration: ${{ steps.find.outputs.integration }}
+      extension: ${{ steps.find.outputs.extension }}
+      client: ${{ steps.find.outputs.client }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: find
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s inherit_errexit
+          # Integration fixtures: tracked test/integration/*.sh (not in subdirectories), safe names only
+          scripts=()
+          while IFS= read -r f; do
+            case "$f" in test/integration/*/*) continue ;; esac
+            [[ "$f" =~ ^test/integration/[A-Za-z0-9][A-Za-z0-9_.-]*\.sh$ ]] || {
+              echo "::error::bad integration script name: $f"
+              exit 1
+            }
+            scripts+=("$f")
+          done < <(git ls-files -- 'test/integration/*.sh')
+          if [ ${#scripts[@]} -eq 0 ]; then
+            integration='[]'
+          else
+            integration="$(printf '%s\n' "${scripts[@]}" | jq -R . | jq -cs .)"
+          fi
+          extension=false
+          if [ -n "$(git ls-files -- extension/package.json)" ]; then extension=true; fi
+          client=false
+          if [ -n "$(git ls-files -- 'test/client/*.bats')" ]; then client=true; fi
+          {
+            echo "integration=$integration"
+            echo "extension=$extension"
+            echo "client=$client"
+          } >>"$GITHUB_OUTPUT"
+          echo "integration=$integration extension=$extension client=$client"
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.BATS_REPO }}
+          ref: ${{ env.BATS_REF }}
+          path: .ci/bats-core
+          persist-credentials: false
+      - name: Install bats and util-linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends util-linux jq
+          sudo .ci/bats-core/install.sh /usr/local
+          rm -rf .ci # lint.sh checks untracked files too
+          bats --version
+          command -v flock
+      - name: ./lint.sh
+        shell: bash
+        run: ./lint.sh
+
+  integration:
+    needs: discover
+    if: needs.discover.outputs.integration != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        script: ${{ fromJSON(needs.discover.outputs.integration) }}
+    name: integration (${{ matrix.script }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run fixture
+        shell: bash
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: bash -- "$SCRIPT"
+
+  extension:
+    needs: discover
+    if: needs.discover.outputs.extension == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: extension/.nvmrc
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vsix
+          path: extension/dist/*.vsix
+          if-no-files-found: error
+
+  client-windows:
+    needs: discover
+    if: needs.discover.outputs.client == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash # Git Bash on the Windows runners
+    steps:
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.BATS_REPO }}
+          ref: ${{ env.BATS_REF }}
+          path: .ci/bats-core
+          persist-credentials: false
+      - name: Client tests (bats under Git Bash)
+        run: |
+          set -euo pipefail
+          bash --version | head -n 1
+          .ci/bats-core/bin/bats --version
+          .ci/bats-core/bin/bats -r test/client
