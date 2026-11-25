@@ -205,7 +205,7 @@ differs), and positron-remote's exact label keys (`fnkc.user`, …) never match 
 | labels on containers, volumes, network | `fnkcsh.managed=1`, `fnkcsh.user`, `fnkcsh.project`, `fnkcsh.repository`, `fnkcsh.revision`, `fnkcsh.setup`, `fnkcsh.provenance` | `LABEL` | R5 |
 | restored-archive volume label | `fnkcsh.restore` (never read, mounted or deleted as a project's) | `LABEL.restore` | R5, R22 |
 | helper labels | `fnkcsh.helper=<kind>`, `fnkcsh.helper.user`, `fnkcsh.helper.project` | `HELPER_LABEL` | R5 |
-| locks (files in `lockDir`) | `host`, `project-<user>-<project>`, `image-upload`, `image-store` | `agent.ts`, `cli.ts` | R6 |
+| locks (files `<name>.kernel` in `lockDir`, mode 600, never deleted; `server/lib/lock.sh`) | `host`, `project-<user>-<project>`, `image-upload`, `image-store` | `agent.ts`, `cli.ts`, `lock.ts` | R6 |
 | upload tag | `<repository>:sha256-<hex>` (kept: content-addressed, so sharing it with positron-remote is harmless; the moved-tag check compares it with our own record) | `oci.ts` `uploadedTag` | R14, R15 |
 | loaded-image record | `<imageStagingDir>/loaded/<digest hex>` holding `sha256:<64 hex>` | `image-store.ts` `loadedRecord` | R14, R15 |
 
@@ -296,7 +296,7 @@ Status: **kept** (same behaviour), **changed** (said how), **dropped** (said why
 | Recovery container, `replacement-not-ready`, `discardReplacement` | kept | `agent.ts` `startLocked` | R12 | todo |
 | Rename of legacy `<container>-previous` | dropped: clean start | `agent.ts` `startLocked` | R12 | todo |
 | Stop (90 s), qualified stop and outcomes, `busy`, `keep` (3 days), `checkout` | kept | `agent.ts` | R13 | todo |
-| Locks with timeouts, lock order (reference/lifecycle.md «Lock ordering and availability») | changed: `flock` instead of Python `fcntl` | `lock.ts` | R6 | todo |
+| Locks with timeouts, lock order (reference/lifecycle.md «Lock ordering and availability») | changed: `flock` instead of Python `fcntl`; default timeout 120 s; busy ends the request with exit status 75 and `operation is busy; timed out waiting for <file>` (the reply layer answers code `busy`); order project → image-upload → image-store → host enforced in-process (a violation or a repeated lock dies at once instead of waiting for itself); released by the kernel when the holder ends, even on SIGKILL | `lock.ts` | R6 | done (#PR) |
 
 ### Images
 

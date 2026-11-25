@@ -9,7 +9,7 @@ How the code is laid out and how to add a gateway request, an admin command or a
 | Path | What |
 | --- | --- |
 | `server/fnkc-ctl` | entry point on the host (`serve --user U` forced command, `admin …`) |
-| `server/lib/` | sourced libraries: `core.sh` (below), then `grammar.sh`, `reply.sh`, `config.sh`, `names.sh`, … |
+| `server/lib/` | sourced libraries: `core.sh` (below), then `grammar.sh`, `reply.sh`, `config.sh`, `names.sh`, `docker.sh`, `lock.sh`, … |
 | `server/requests/<request>.sh` | one file per gateway request |
 | `server/admin/<command>.sh` | one file per admin command |
 | `container/` | scripts copied into project containers (entrypoint, idle watch, R profile) |
