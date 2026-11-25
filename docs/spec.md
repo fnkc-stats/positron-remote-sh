@@ -206,7 +206,7 @@ differs), and positron-remote's exact label keys (`fnkc.user`, …) never match 
 | upload tag | `<repository>:sha256-<hex>` (kept: content-addressed, so sharing it with positron-remote is harmless; the moved-tag check compares it with our own record) | `oci.ts` `uploadedTag` | R14, R15 |
 | loaded-image record | `<imageStagingDir>/loaded/<digest hex>` holding `sha256:<64 hex>` | `image-store.ts` `loadedRecord` | R14, R15 |
 
-Ownership (R5): an object is the user's project object only when `fnkcsh.managed=1`, `fnkcsh.user=<user>`,
+Ownership (R5, done: `is_owned` in `server/lib/names.sh`, `own_object`/`find_owned` in `server/lib/docker.sh`): an object is the user's project object only when `fnkcsh.managed=1`, `fnkcsh.user=<user>`,
 `fnkcsh.project=<project>` **and** its name is the one computed above (`isProjectContainer`, `own`). Anything else
 under the name → refused (`refusing container not owned by this user/project`).
 
