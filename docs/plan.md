@@ -17,7 +17,7 @@ Everything there that is not explicitly dropped below must keep working the same
 - Trust model: one SSH gateway account with a forced command; no Docker access for users; per-user ownership of every
   container, volume, network and lock; container hardening flags; read-only Positron server; host keys pinned over the
   control channel.
-- Ops: releases under `/opt/fnkc-ctl/releases/<version>-<checksum>` with `MANIFEST`, one `current` switch, rollback;
+- Ops: releases under `/opt/fnkc-ctl-sh/releases/<version>-<checksum>` with `MANIFEST`, one `current` switch, rollback;
   backups (`volume-backup.sh`), `render-reviewed.py`; server-first upgrades.
 - Process: one branch per change, `./lint.sh`, PRs merged after green CI, audit plans, the review checklists in
   `.claude/agents/`.
@@ -26,7 +26,7 @@ Everything there that is not explicitly dropped below must keep working the same
 
 | Area | positron-remote | here |
 | --- | --- | --- |
-| Server program | `fnkc-ctl.cjs` on Node | bash scripts under `/opt/fnkc-ctl/current/` |
+| Server program | `fnkc-ctl.cjs` on Node | bash scripts under `/opt/fnkc-ctl-sh/current/` |
 | Wire protocol | `fnkc-ctl agent <request> <args>` in, JSON on stdin for `start`, one JSON reply line out | the same protocol, versions and capabilities (decision 7); argv validated by anchored regexes, JSON read and written only with `jq` |
 | Container SSH path | agent pipes to the container's port | `docker exec -i <container> /usr/sbin/sshd -i` (inetd mode: no port, no network piping), to be confirmed in phase 2 |
 | Client | Positron extension (sidebar, buttons, self-update) + Node CLI `fnkc-ctl.cjs` | the same extension under its own id (coexists with positron-remote's), without the Node CLI and the in-process agent; a small bash `fnkc` (list, stop, doctor) for the terminal |
@@ -57,6 +57,10 @@ git-crypt projects), Positron.
    transport doubles as the parity test. The extension gets its own id, `~/.ssh` entry directory and release URLs so
    it coexists with positron-remote's (decision 4). Local Docker mode is dropped in v1. Decision 1 (Git Bash) now
    covers only the small bash `fnkc`; the extension's Windows path is positron-remote's, unchanged.
+8. **Host names (user, 2026-11-24, Q-S1 / R35):** own account and paths, so both tools share one pilot host (decision 4):
+   account `fnkcsh`, `/opt/fnkc-ctl-sh` (releases, `current`), `/etc/fnkc-ctl-sh` (`agent.json`, `keys/`,
+   `trusted-root.jsonl`), journal tag and `authorized_keys` marker `fnkc-ctl-sh`. The program keeps the name `fnkc-ctl`
+   (decision 6).
 
 ## Parallel work rules
 
@@ -81,7 +85,7 @@ shared parts are created once, complete, by one early task, and later tasks only
 1. **Foundations.** Layout (`server/`, `client/`, `container/`, `test/`), `lib/` conventions (strict mode, `die`,
    logging to journald via `logger`, input validation helpers), `lint.sh` (shellcheck, shfmt check, actionlint,
    gitleaks, English-only), bats test harness with fake `docker`/`ssh`, CI workflow, `.github/scripts`.
-2. **Gateway core.** Forced command entry (`authorized_keys` `command="/opt/fnkc-ctl/fnkc-ctl serve --user U"`),
+2. **Gateway core.** Forced command entry (`authorized_keys` `command="/opt/fnkc-ctl-sh/fnkc-ctl serve --user U"`),
    `SSH_ORIGINAL_COMMAND` parsing with a fixed grammar and regex-validated arguments, request size cap, per-project
    and host locks (`flock`, with timeouts), naming and labels, `list`, `connect` (`sshd -i` path), audit journal.
 3. **Container lifecycle.** Open (create with all hardening flags, volumes, network, limits), stop, idle watch,
