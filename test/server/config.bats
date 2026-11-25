@@ -289,6 +289,14 @@ check_config() {
   assert_output_contains 'no such account: nobody2'
 }
 
+@test "sourcing config.sh leaves serve's FNKC_AGENT_CONFIG alone" {
+  printf '%s\n' '{"idleMinutes":4}' >"$CONF"
+  run env FNKC_AGENT_CONFIG="$CONF" bash -c 'source "$FNKC_LIB/config.sh"; config_load "$FNKC_AGENT_CONFIG" /h
+    echo "$FNKC_AGENT_CONFIG $CFG_IDLE_MINUTES"'
+  assert_status 0
+  [ "$output" = "$CONF 4" ]
+}
+
 @test "config_load runs once per process; a home that is not absolute is refused" {
   printf '%s\n' '{"idleMinutes":3}' >"$CONF"
   run bash -c 'source "$FNKC_LIB/config.sh"; config_load "$1" /h; config_load /nonexistent /h; echo "$CFG_IDLE_MINUTES"' \

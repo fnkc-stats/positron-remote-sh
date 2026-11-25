@@ -43,7 +43,7 @@ FNKC_CONFIG_LOADED=1
 # shellcheck source=server/lib/core.sh
 source "${FNKC_LIB:?FNKC_LIB is not set}/core.sh"
 
-readonly FNKC_AGENT_CONFIG=/etc/fnkc-ctl-sh/agent.json
+readonly CONFIG_DEFAULT_FILE=/etc/fnkc-ctl-sh/agent.json
 readonly FNKC_ACCOUNT_RE='[a-z_][a-z0-9_-]{0,31}'
 
 # The settings agent.json may have, in agent-config.ts order (CONFIG_KEYS without "docker"), and those of "limits".
@@ -164,8 +164,8 @@ config_load() {
   if [[ -n "$file" ]]; then
     is_match '.+' "$file" 4096 || _config_fail "agent config: invalid file name" || return 1
     [[ -f "$file" && -r "$file" ]] || _config_fail "cannot read $file" || return 1
-  elif [[ -e "$FNKC_AGENT_CONFIG" ]]; then
-    file="$FNKC_AGENT_CONFIG"
+  elif [[ -e "$CONFIG_DEFAULT_FILE" ]]; then
+    file="$CONFIG_DEFAULT_FILE"
     [[ -f "$file" && -r "$file" ]] || _config_fail "cannot read $file" || return 1
   fi
   if [[ -n "$file" ]]; then
