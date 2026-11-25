@@ -284,8 +284,8 @@ Status: **kept** (same behaviour), **changed** (said how), **dropped** (said why
 
 | Behaviour | Status | Source | Task | Done |
 | --- | --- | --- | --- | --- |
-| Forced command, `parseCommand`, 2 MiB / 10 s stdin cap, reply envelope, journal | kept; environment cleared first (changed) | `cli.ts`, `serve.ts`, `journal.ts` | R3 | todo |
-| Key recheck on every request and during `connect` | kept | `agent.ts` `authorized`, `connectProject` | R3, R7 | todo |
+| Forced command, `parseCommand`, 2 MiB / 10 s stdin cap, reply envelope, journal | kept; environment cleared first (changed) | `cli.ts`, `serve.ts`, `journal.ts` | R3 | changed (#8): Unicode whitespace is not a separator (refused); an unknown first word is always `unknown-command` |
+| Key recheck on every request and during `connect` | kept | `agent.ts` `authorized`, `connectProject` | R3, R7 | done (#8) per request; `connect` R7 |
 | `connect` to the container's sshd | changed: `docker exec -i … sshd -i` (R7 confirms) | `agent.ts` `connectProject` | R7 | todo |
 | `list` with memory and idle fields (`/run/fnkc-idle`) | kept | `agent.ts` `list`, `idleState` | R8 | todo |
 | Container scripts (entrypoint, idle watch, `fnkc-projects`, R profile, snapshot, environment) | kept, Bash rules | `ctl/container/*` | R9 | todo |
