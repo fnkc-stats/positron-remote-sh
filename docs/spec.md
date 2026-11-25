@@ -296,7 +296,7 @@ Status: **kept** (same behaviour), **changed** (said how), **dropped** (said why
 | Recovery container, `replacement-not-ready`, `discardReplacement` | kept | `agent.ts` `startLocked` | R12 | todo |
 | Rename of legacy `<container>-previous` | dropped: clean start | `agent.ts` `startLocked` | R12 | todo |
 | Stop (90 s), qualified stop and outcomes, `busy`, `keep` (3 days), `checkout` | kept | `agent.ts` | R13 | todo |
-| Locks with timeouts, lock order (reference/lifecycle.md «Lock ordering and availability») | changed: `flock` instead of Python `fcntl`; default timeout 120 s; busy ends the request with exit status 75 and `operation is busy; timed out waiting for <file>` (the reply layer answers code `busy`); order project → image-upload → image-store → host enforced in-process (a violation or a repeated lock dies at once instead of waiting for itself); released by the kernel when the holder ends, even on SIGKILL | `lock.ts` | R6 | done (#PR) |
+| Locks with timeouts, lock order (reference/lifecycle.md «Lock ordering and availability») | changed: `flock` instead of Python `fcntl`; default timeout 120 s; busy ends the request with exit status 75 and `operation is busy; timed out waiting for <file>` (the reply layer answers code `busy`); order project → image-upload → image-store → host enforced in-process (a violation or a repeated lock dies at once instead of waiting for itself); released by the kernel when the holder ends, even on SIGKILL | `lock.ts` | R6 | done (#9) |
 
 ### Images
 
