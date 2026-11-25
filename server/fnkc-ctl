@@ -1,0 +1,58 @@
+#!/bin/bash -p
+# fnkc-ctl: the server program (docs/spec.md «Entry»).
+#
+#   fnkc-ctl serve --user <user> [--agent-config <file>] [--path <dirs>]
+#
+# `serve` is the forced command of the gateway account's authorized_keys: it runs the request in
+# SSH_ORIGINAL_COMMAND (server/lib/serve.sh). --agent-config (default /etc/fnkc-ctl-sh/agent.json) and --path (the
+# fixed PATH below) are for admins and tests; a client cannot set them, since sshd runs the command line from
+# authorized_keys as written.
+#
+# Shebang: /bin/bash, not `env bash` (no PATH lookup before PATH is reset), and -p (privileged mode), so bash itself
+# ignores BASH_ENV, ENV, SHELLOPTS, BASHOPTS, CDPATH and GLOBIGNORE and imports no functions from the environment.
+
+# 1. The environment, before any other code (core.sh included): run again under `env -i` with only what sshd says
+#    about the connection, so no exported variable (FNKC_* included, which could switch off core.sh or redirect the
+#    log), function or odd-named entry reaches this program or its children; then set what it needs itself. The
+#    marker argument cannot come from a client: sshd runs the authorized_keys command line as written.
+if [[ "${1-}" != --env-cleared ]]; then
+  _fnkc_env=()
+  [[ -z "${SSH_ORIGINAL_COMMAND+x}" ]] || _fnkc_env+=("SSH_ORIGINAL_COMMAND=$SSH_ORIGINAL_COMMAND")
+  [[ -z "${SSH_CONNECTION+x}" ]] || _fnkc_env+=("SSH_CONNECTION=$SSH_CONNECTION")
+  exec /usr/bin/env -i "${_fnkc_env[@]}" /bin/bash -p -- "${BASH_SOURCE[0]}" --env-cleared "$@"
+fi
+shift
+set +o posix
+IFS=$' \t\n'
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LANG=C
+LC_ALL=C
+HOME=~
+TMPDIR=/tmp
+export PATH LANG LC_ALL HOME TMPDIR
+# Read by serve.sh only; requests and their commands never see them.
+export -n SSH_ORIGINAL_COMMAND SSH_CONNECTION 2>/dev/null || true
+umask 077
+
+set -euo pipefail
+shopt -s inherit_errexit
+
+FNKC_ROOT="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+FNKC_LIB="$FNKC_ROOT/lib"
+FNKC_LOG_TAG=fnkc-ctl-sh
+FNKC_LOG=auto
+# shellcheck source=lib/core.sh
+source "$FNKC_LIB/core.sh"
+
+case "${1:-}" in
+  serve)
+    shift
+    # shellcheck source=lib/serve.sh
+    source "$FNKC_LIB/serve.sh"
+    serve_main "$@"
+    ;;
+  *)
+    printf 'Error: unknown command %s (fnkc-ctl serve --user <user>)\n' "'$(_fnkc_oneline "${1:-}")'" >&2
+    exit 1
+    ;;
+esac

@@ -9,7 +9,7 @@ How the code is laid out and how to add a gateway request, an admin command or a
 | Path | What |
 | --- | --- |
 | `server/fnkc-ctl` | entry point on the host (`serve --user U` forced command, `admin …`) |
-| `server/lib/` | sourced libraries: `core.sh` (below), then `grammar.sh`, `reply.sh`, `config.sh`, `names.sh`, … |
+| `server/lib/` | sourced libraries: `core.sh` (below), then `grammar.sh`, `reply.sh`, `config.sh`, `names.sh`, `docker.sh`, `lock.sh`, … |
 | `server/requests/<request>.sh` | one file per gateway request |
 | `server/admin/<command>.sh` | one file per admin command |
 | `container/` | scripts copied into project containers (entrypoint, idle watch, R profile) |
@@ -45,15 +45,24 @@ variables and arrays, and goes after `--` (or as an explicit option value) to ev
 
 ## Adding a gateway request
 
-The dispatcher, `grammar.sh` and `reply.sh` come from R3; the shape is fixed by plan.md:
+`server/fnkc-ctl serve` (forced command) runs under a clean environment it builds itself, parses
+`SSH_ORIGINAL_COMMAND`, checks the words against `server/lib/grammar.sh`, rechecks the user's key, reads a bounded
+JSON stdin where the grammar says so, then runs `server/requests/<request>.sh` as its own bash process and writes the
+reply (`server/lib/reply.sh`) and the journal line (`server/lib/journal.sh`). A request file only does its own work:
 
-1. Its row in `docs/spec.md` (argv, stdin, reply, errors) must exist. `server/lib/grammar.sh` already lists every
-   request with its argument patterns; if yours is missing, that is a separate small task, not an edit in your PR.
-2. Create `server/requests/<request>.sh`. The dispatcher validates argv against the grammar before your file runs,
-   so the file starts from validated values; it validates anything else it reads (stdin JSON via `jq`, Docker output).
-   It declares the capabilities it adds, which `ping` collects. A request without a file answers `unknown-command`.
-3. Replies go through `reply.sh` only (JSON envelope, error codes from the spec).
-4. Add `test/server/<request>.bats` (below) and mark the spec rows done.
+1. Its row in `docs/spec.md` (argv, stdin, reply, errors) must exist. `grammar.sh` already lists every request with
+   its argument kinds, stdin mode and value patterns; if yours is missing, that is a separate small task.
+2. Create `server/requests/<request>.sh` starting with `source "$FNKC_LIB/request.sh"` (its header lists the
+   variables you get: `FNKC_USER`, `FNKC_KEYS_DIR`, `FNKC_STDIN_FILE`, …). `"$@"` are the validated words
+   (a repository without its trailing `/`); validate anything else you read (stdin JSON via `jq`, Docker output,
+   with `grammar_value <kind> <value>` for the spec's patterns).
+3. Result: one JSON value on stdout, written with `jq`, exit 0. Refusal: `fail <message>`, `fail_code <code>
+   <message>`, `fail_image_missing <message> <image> <arch>` or `fail_checkout_pins <message> <image>`; they work
+   inside subshells too. Any other failure answers `internal error`. `info`/`warn` write progress to stderr;
+   `journal_set <key> <value>` adds fields to the journal line.
+4. Capabilities the request adds: one line `# fnkc-capabilities: <name> …` in the file; `ping` collects them, so
+   a host advertises a capability only when its file is installed.
+5. Add `test/server/<request>.bats` (below) and mark the spec rows done.
 
 ## Adding an admin command
 
@@ -91,6 +100,10 @@ setup() {
 - Inject failures through the fakes (`fake_reply -s 1 …`) and check they surface; refuse hostile input before any
   `docker` call (`refute_called docker`).
 - Tests add scenarios; they never edit the fakes or `test/helpers/`.
+- Through the gateway: `load '../helpers/gateway'`, `setup_gateway` (a copy of `server/` in `$GW`, user `alice`
+  with a key), `run --separate-stderr gateway 'agent <request> …'`, `stub_request <request> <body>` for a request
+  file in the copy, `journal_lines` for what went to `logger`. serve drops the caller's environment, so the fakes
+  reach it through `serve --path` (an admin/test option a client cannot set), never through `PATH`.
 
 `./lint.sh` runs the server tests in a pinned Linux container (`test/helpers/Dockerfile`: bash 5, flock, GNU tar,
 jq, git, bats), natively on a Linux machine with bats and flock; client tests run natively when bats is installed.
