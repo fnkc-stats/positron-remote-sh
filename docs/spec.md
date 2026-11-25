@@ -254,7 +254,7 @@ Kept unchanged, because they live inside a container or an image: container user
 request with `agent config: "<key>" must …` (wording from source; the memory sizes and `limits.cpus` name their key
 instead of `checkLimit`'s `invalid memory limit: '<value>'`, which echoed the value).
 
-Implemented in `server/lib/config.sh` (R4), done: `config_load [file] [home]` sets readonly `CFG_*` variables and
+Implemented in `server/lib/config.sh` (R4), done (#10): `config_load [file] [home]` sets readonly `CFG_*` variables and
 arrays (list in the file's header). Changed from `agent-config.ts`, all stricter:
 
 - "Absolute path": a string starting with `/`. "Text": non-empty, not starting with `-`. Every string has a length
@@ -336,7 +336,7 @@ Status: **kept** (same behaviour), **changed** (said how), **dropped** (said why
 
 | Behaviour | Status | Source | Task | Done |
 | --- | --- | --- | --- | --- |
-| `check-config` | kept; also `--account` for the defaults under `~` | `cli.ts`, `agent-config.ts` | R4 | done (R4) |
+| `check-config` | kept; also `--account` for the defaults under `~` | `cli.ts`, `agent-config.ts` | R4 | done (#10) |
 | `add-user`, `remove-user` (revoke and stop), `list-users` | kept; command line in `authorized_keys` without Node | `admin.ts`, `cli.ts` | R18 | todo |
 | `status`, `projects` | kept | `admin-status.ts` | R21 | todo |
 | `remove-project`, `stop-all`, `support-export` | kept | `cli.ts`, `journal.ts` | gap | todo |
