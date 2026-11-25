@@ -225,7 +225,7 @@ Kept unchanged, because they live inside a container or an image: container user
 | Key | Default | Validation | Status |
 | --- | --- | --- | --- |
 | `allowedImages` | `["ghcr.io/fnkc-stats/r-env"]` | non-empty list of exact repositories, each `^[a-z0-9][a-z0-9._/:-]*[a-z0-9]$` | kept |
-| `keysDir` | none (required by `serve`) | string | kept; recommended `/etc/fnkc-ctl-sh/keys` |
+| `keysDir` | none (required by `serve`) | absolute path | changed (R4): absolute path; recommended `/etc/fnkc-ctl-sh/keys` |
 | `limits.memory` | `4g` | `^[0-9]+[bkmgBKMG]?$`, > 0 | kept |
 | `limits.cpus` | `2` | number or string `^[0-9]+(\.[0-9]+)?$`, > 0 | kept |
 | `limits.pids` | `512` | positive integer | kept |
@@ -233,9 +233,9 @@ Kept unchanged, because they live inside a container or an image: container user
 | `skipExtensions` | `["ms-toolsai.","ms-python.debugpy","meta.pyrefly","charliermarsh.ruff","github.vscode-pull-request-github"]` | list of `^[A-Za-z0-9._-]+$` | kept |
 | `idleCheckSeconds` | unset (60) | integer ≥ 0; 0 = unset; tests only | kept |
 | `pullImages` | `false` | boolean | kept |
-| `imageStagingDir` | `~/.cache/fnkc-ctl/images` of the account | string | changed: no per-`docker` namespace |
+| `imageStagingDir` | `~/.cache/fnkc-ctl/images` of the account | absolute path | changed: no per-`docker` namespace; absolute path |
 | `docker` | — | — | dropped: a command prefix for local Docker (WSL); the server runs `docker` |
-| `lockDir` | `~/.cache/fnkc-ctl/locks` | string | changed: no namespace |
+| `lockDir` | `~/.cache/fnkc-ctl/locks` | absolute path | changed: no namespace; absolute path |
 | `maxProjectsPerUser` | `2` | integer ≥ 0; 0 admits no starts | kept |
 | `imageReserve` | `2g` | memory size | kept |
 | `maxUnpackedImage` | `64g` | memory size | kept |
@@ -245,14 +245,27 @@ Kept unchanged, because they live inside a container or an image: container user
 | `extraHosts` | `{}` | object: name `^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$` → IP `^[0-9A-Fa-f.:]+$` | kept |
 | `cranMirror` | `https://mirror.truenetwork.ru/CRAN/` | `^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~-]+)*/$` | kept |
 | `requireProvenance` | `true` when `keysDir` is set | boolean | kept |
-| `provenanceRepository` | `fnkc-stats/positron-remote` | string | kept (images are built there) |
-| `provenanceWorkflow` | `.github/workflows/positron.yml` | string | kept |
-| `trustedRootFile` | `/etc/fnkc-ctl-sh/trusted-root.jsonl` | string | changed: own directory (Q-S1) |
-| `verifiedDir` | `~/.cache/fnkc-ctl/verified` | string | changed: no namespace |
+| `provenanceRepository` | `fnkc-stats/positron-remote` | text | kept (images are built there) |
+| `provenanceWorkflow` | `.github/workflows/positron.yml` | text | kept |
+| `trustedRootFile` | `/etc/fnkc-ctl-sh/trusted-root.jsonl` | absolute path | changed: own directory (Q-S1); absolute path |
+| `verifiedDir` | `~/.cache/fnkc-ctl/verified` | absolute path | changed: no namespace; absolute path |
 
 "Memory size" is `checkLimit('memory')`: `^[0-9]+[bkmgBKMG]?$` and greater than 0. A wrong type or value fails the
-request with `agent config: "<key>" must …` (wording from source). Defaults under `~` are the gateway account's home
-(admin commands run as root pass that home; R4 decides how). Task: R4.
+request with `agent config: "<key>" must …` (wording from source; the memory sizes and `limits.cpus` name their key
+instead of `checkLimit`'s `invalid memory limit: '<value>'`, which echoed the value).
+
+Implemented in `server/lib/config.sh` (R4), done: `config_load [file] [home]` sets readonly `CFG_*` variables and
+arrays (list in the file's header). Changed from `agent-config.ts`, all stricter:
+
+- "Absolute path": a string starting with `/`. "Text": non-empty, not starting with `-`. Every string has a length
+  cap and no string may contain a control character, so each value is safe on one line and as a command argument.
+- JSON `null` is a wrong type for every key (the source fell back to the default for some); `limits` must be an
+  object; whole numbers stay below 2^53 (bash arithmetic).
+- `docker` is not a setting any more, so `check-config` warns about it as an unknown key.
+- Defaults under `~`: the gateway uses `$HOME` of the account it runs as; admin commands running as root pass the
+  home of `--account` (default `fnkcsh`) from `getent passwd`.
+- The file: `--agent-config <file>`, else `/etc/fnkc-ctl-sh/agent.json` if it exists, else all defaults. There is no
+  environment variable for it (positron-remote's `FNKC_CTL_AGENT_CONFIG` is not read).
 
 ## Admin commands
 
@@ -323,7 +336,7 @@ Status: **kept** (same behaviour), **changed** (said how), **dropped** (said why
 
 | Behaviour | Status | Source | Task | Done |
 | --- | --- | --- | --- | --- |
-| `check-config` | kept | `cli.ts`, `agent-config.ts` | R4 | todo |
+| `check-config` | kept; also `--account` for the defaults under `~` | `cli.ts`, `agent-config.ts` | R4 | done (R4) |
 | `add-user`, `remove-user` (revoke and stop), `list-users` | kept; command line in `authorized_keys` without Node | `admin.ts`, `cli.ts` | R18 | todo |
 | `status`, `projects` | kept | `admin-status.ts` | R21 | todo |
 | `remove-project`, `stop-all`, `support-export` | kept | `cli.ts`, `journal.ts` | gap | todo |
